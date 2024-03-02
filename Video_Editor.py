@@ -203,21 +203,6 @@ def initialize_editor(user):
 
         process_label.config(text="Processing...")
 
-    def audio(file_name_entry):
-        file_video = select_file()
-        clip_video = VideoFileClip(file_video)
-        file_audio = filedialog.askopenfilename(filetypes=[("Audio files", "*.mp3")])
-        clip_audio = AudioFileClip(file_audio)
-        clip_final = clip_video.set_audio(clip_audio)
-        try:
-            filename = file_name_entry.get()
-            if filename.strip() == "":
-                filename = "Final_Render.mp4"
-            clip_final.write_videofile(f"{filename}.mp4")
-            process_label.config(text="Processing complete")
-        except Exception as e:
-            process_label.config(text=f"Error: {e}")
-
     def start_thread(target, file_name_entry):
         process_label.config(text="Processing...")
         thread = threading.Thread(target=target, args=(file_name_entry,))
@@ -228,7 +213,6 @@ def initialize_editor(user):
         ("Concat", concat),
         ("Mirror", mirror),
         ("Trim", trim),
-        ("Audio", audio)
     ]
 
     file_name_entry = Entry(root, width=50)
