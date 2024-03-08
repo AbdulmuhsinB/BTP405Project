@@ -1,13 +1,51 @@
+from pymongo import MongoClient
+import streamlit as st
 import streamlit as st 
 import os
 from moviepy.editor import * 
 from video_editing_functions import * 
 
+
+# Connect to MongoDB
+client = MongoClient("mongodb+srv://muhsinbaksh04:ltz2qoZ6F5mriq3h@cluster0.polmgu9.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0")
+db = client.get_database("BTP425")
+videos_collection = db["videos"]
+
+# Define a Schema for the videos collection
+video_schema = {
+    "user_name": str,
+    "video_name": str,
+    "video_url": str
+}
+
+# Function to save processed video to the database
+def save_video_to_db(user_name, video_name, video_url):
+    video_data = {
+        "user_name": user_name,
+        "video_name": video_name,
+        "video_url": video_url
+    }
+    videos_collection.insert_one(video_data)
+
+# Function to retrieve all videos saved for a user
+def get_videos_for_user(user_name):
+    return videos_collection.find({"user_name": user_name})
+
+# Function to display all videos saved for a user
+def display_videos_for_user(user_name):
+    videos = get_videos_for_user(user_name)
+    if videos:
+        st.write("Videos saved for user:", user_name)
+        for video in videos:
+            st.write(f"Video Name: {video['video_name']}")
+            st.write(f"Video URL: {video['video_url']}")
+
 # Define the main function to build the Streamlit web app
 def main():
     # Set the title of the web app
-    st.title("Online Video Editor")
+    st.title("BTP405 Project - Video Editor")
 
+    user_name = st.text_input("Enter your name")
     # Display a select box for choosing the operation to perform
     st.write("Select an operation:")
     operation = st.selectbox("Operation", ["Concatenate Videos", "Trim Video", "Invert Colors", "Adjust Speed", "Mirror Video"])
@@ -75,10 +113,13 @@ def main():
                 # Set processing complete to True
                 processing_complete = True
 
-    # Display download button for processed video only if processing is complete
     if processing_complete:
-        # Call the function to display the processed video and provide a download button
-        display_processed_video(output_filename)
+        if user_name:
+            output_file = f"{output_filename}.mp4" if output_filename else "Edited Video.mp4"
+            save_video_to_db(user_name, output_filename, output_file)
+            
+        # Display all videos saved for the user
+        display_videos_for_user(user_name)
 
 # Function to process and concatenate two uploaded videos
 def process_concatenate_videos(uploaded_file1, uploaded_file2, output_filename):
