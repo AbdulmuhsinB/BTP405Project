@@ -1,44 +1,53 @@
 from pymongo import MongoClient
+from gridfs import GridFS
 import streamlit as st
-import streamlit as st 
 import os
-from moviepy.editor import * 
-from video_editing_functions import * 
-
+import io
+from video_editing_functions import *
 
 # Connect to MongoDB
 client = MongoClient("mongodb+srv://muhsinbaksh04:ltz2qoZ6F5mriq3h@cluster0.polmgu9.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0")
 db = client.get_database("BTP425")
-videos_collection = db["videos"]
+fs = GridFS(db)
 
 # Define a Schema for the videos collection
 video_schema = {
     "user_name": str,
-    "video_name": str,
-    "video_url": str
+    "video_name": str
 }
 
 # Function to save processed video to the database
-def save_video_to_db(user_name, video_name, video_url):
-    video_data = {
-        "user_name": user_name,
-        "video_name": video_name,
-        "video_url": video_url
-    }
-    videos_collection.insert_one(video_data)
+def save_video_to_db(user_name, video_name, output_filename):
+    # Open the processed video file in binary mode
+    with open(output_filename, "rb") as f:
+        # Use GridFS to store the processed video in the database
+        fs.put(f, filename=output_filename, user_name=user_name, video_name=video_name)
+
 
 # Function to retrieve all videos saved for a user
 def get_videos_for_user(user_name):
-    return videos_collection.find({"user_name": user_name})
+    videos = []
+    cursor = fs.find({"user_name": user_name})
+    for file in cursor:
+        videos.append(file)
+    return videos
 
-# Function to display all videos saved for a user
 def display_videos_for_user(user_name):
     videos = get_videos_for_user(user_name)
     if videos:
         st.write("Videos saved for user:", user_name)
         for video in videos:
-            st.write(f"Video Name: {video['video_name']}")
-            st.write(f"Video URL: {video['video_url']}")
+            st.write(f"Video Name: {video.video_name}")
+            display_video(video)
+    else:
+        st.write(f"No videos found for user: {user_name}")
+
+# Function to display the video using st.video
+def display_video(video):
+    # Read the video data from GridFS
+    video_data = video.read()
+    # Display the video using st.video
+    st.video(io.BytesIO(video_data))
 
 # Define the main function to build the Streamlit web app
 def main():
@@ -46,6 +55,11 @@ def main():
     st.title("BTP405 Project - Video Editor")
 
     user_name = st.text_input("Enter your name")
+
+    # Display a button to show videos for the entered user_name
+    if st.button("Show My Videos"):
+        display_videos_for_user(user_name)
+        
     # Display a select box for choosing the operation to perform
     st.write("Select an operation:")
     operation = st.selectbox("Operation", ["Concatenate Videos", "Trim Video", "Invert Colors", "Adjust Speed", "Mirror Video"])
@@ -117,9 +131,6 @@ def main():
         if user_name:
             output_file = f"{output_filename}.mp4" if output_filename else "Edited Video.mp4"
             save_video_to_db(user_name, output_filename, output_file)
-            
-        # Display all videos saved for the user
-        display_videos_for_user(user_name)
 
 # Function to process and concatenate two uploaded videos
 def process_concatenate_videos(uploaded_file1, uploaded_file2, output_filename):
@@ -132,7 +143,7 @@ def process_concatenate_videos(uploaded_file1, uploaded_file2, output_filename):
         f2.write(uploaded_file2.getbuffer())
     
     # Define the output file name based on the provided output filename or use a default name
-    output_file = f"{output_filename}.mp4" if output_filename else "Edited Video - concat.mp4"
+    output_file = f"{output_filename}.mp4" if output_filename else "Edited Video.mp4"
     
     # Call the 'concatenate_videos' function to concatenate the two video files and save the result to the output file
     concatenate_videos([os.path.join("temp_files", uploaded_file1.name), os.path.join("temp_files", uploaded_file2.name)], output_file)
@@ -147,8 +158,7 @@ def process_trim_video(uploaded_file, start_time, end_time, output_filename):
         f.write(uploaded_file.getbuffer())
     
     # Define the output file name based on the provided output filename or use a default name
-    output_file = f"{output_filename}.mp4" if output_filename else "Edited Video - trim.mp4"
-    
+    output_file = f"{output_filename}.mp4" if output_filename else "Edited Video.mp4"           
     # Call the 'trim_video' function to trim the video file and save the result to the output file
     trim_video(os.path.join("temp_files", uploaded_file.name), output_file, start_time, end_time)
     
@@ -162,8 +172,7 @@ def process_invert_colors(uploaded_file, output_filename):
         f.write(uploaded_file.getbuffer())
     
     # Define the output file name based on the provided output filename or use a default name
-    output_file = f"{output_filename}.mp4" if output_filename else "Inverted Video.mp4"
-    
+    output_file = f"{output_filename}.mp4" if output_filename else "Edited Video.mp4"    
     # Call the 'invert_colors' function to invert the colors of the video file and save the result to the output file
     invert_colors(os.path.join("temp_files", uploaded_file.name), output_file)
     
@@ -177,7 +186,7 @@ def process_adjust_speed(uploaded_file, output_filename, speed_factor):
         f.write(uploaded_file.getbuffer())
     
     # Define the output file name based on the provided output filename or use a default name
-    output_file = f"{output_filename}.mp4" if output_filename else "Adjusted Speed Video.mp4"
+    output_file = f"{output_filename}.mp4" if output_filename else "Edited Video.mp4"
     
     # Call the 'adjust_speed' function to adjust the speed of the video file and save the result to the output file
     adjust_speed(os.path.join("temp_files", uploaded_file.name), output_file, speed_factor)
@@ -192,7 +201,7 @@ def process_mirror_video(uploaded_file, output_filename):
         f.write(uploaded_file.getbuffer())
     
     # Define the output file name based on the provided output filename or use a default name
-    output_file = f"{output_filename}.mp4" if output_filename else "Mirrored Video.mp4"
+    output_file = f"{output_filename}.mp4" if output_filename else "Edited Video.mp4"
     
     # Call the 'mirror_video' function to mirror the video horizontally and save the result to the output file
     mirror_video(os.path.join("temp_files", uploaded_file.name), output_file)
@@ -220,4 +229,3 @@ def download_processed_video(output_file):
 # Entry point of the script
 if __name__ == "__main__":
     main()  # Call the main function when the script is executed
-
